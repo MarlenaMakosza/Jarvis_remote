@@ -1,0 +1,5 @@
+# Agent run logs: screenshots of the desktop, can contain private data
+runs/
+
+__pycache__/
+*.pyc

@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f1115">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg">
+<title>JARVIS Remote</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #181b22; --line: #262a33; --text: #e7e9ee; --muted: #8b92a1;
+    --accent: #4f8cff; --ok: #2fbf71; --warn: #f0a531; --bad: #ef4e4e;
+    --radius: 14px;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f4f5f7; --panel: #ffffff; --line: #e1e4ea; --text: #15171c; --muted: #5d6472; }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 12px 16px 120px; }
+  header { display: flex; align-items: center; gap: 10px; padding: 4px 0 12px; }
+  header h1 { font-size: 18px; margin: 0; letter-spacing: .04em; }
+  .pill { margin-left: auto; font-size: 13px; padding: 4px 10px; border-radius: 99px;
+    background: var(--line); color: var(--muted); display: flex; align-items: center; gap: 6px; }
+  .pill::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+  .pill.thinking { color: var(--warn); } .pill.thinking::before { animation: pulse 1s infinite; }
+  .pill.waiting { color: var(--accent); } .pill.acting { color: var(--ok); }
+  @keyframes pulse { 50% { opacity: .25; } }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px; margin-bottom: 12px; }
+  textarea { width: 100%; min-height: 84px; resize: vertical; border-radius: 10px; padding: 10px 12px;
+    background: var(--bg); color: var(--text); border: 1px solid var(--line); font: inherit; }
+  textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
+  .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
+  label.check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+  label.check input { width: 20px; height: 20px; }
+  button { font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 12px 16px;
+    min-height: 48px; cursor: pointer; color: #fff; background: var(--accent); }
+  button:disabled { opacity: .45; }
+  button.ghost { background: var(--line); color: var(--text); }
+  button.ok { background: var(--ok); } button.bad { background: var(--bad); }
+  .grow { flex: 1; }
+  .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .chip { font-size: 13px; padding: 6px 10px; border-radius: 99px; background: var(--line); color: var(--text);
+    border: 0; min-height: 0; font-weight: 400; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .hint { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+  .shot { width: 100%; border-radius: 10px; display: block; border: 1px solid var(--line); background: #000; }
+  .meta { color: var(--muted); font-size: 13px; margin: 10px 0 4px; display: flex; justify-content: space-between; }
+  .thought { margin: 0 0 8px; }
+  .action { font: 14px/1.4 ui-monospace, "JetBrains Mono", monospace; background: var(--bg);
+    padding: 8px 10px; border-radius: 8px; word-break: break-word; }
+  .decide { display: grid; grid-template-columns: 2fr 1fr; gap: 10px; margin-top: 12px; }
+  .result { border-left: 4px solid var(--ok); }
+  details summary { cursor: pointer; color: var(--muted); padding: 4px 0; }
+  .hist { margin-top: 10px; display: grid; gap: 10px; }
+  .hist .card { margin: 0; }
+  .log { font: 12px/1.4 ui-monospace, monospace; color: var(--muted); white-space: pre-wrap; margin: 6px 0 0; }
+  .bar { position: fixed; left: 0; right: 0; bottom: 0; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(8px);
+    border-top: 1px solid var(--line); }
+  .bar .inner { max-width: 720px; margin: 0 auto; display: flex; gap: 10px; }
+  .overlay { position: fixed; inset: 0; background: rgba(0,0,0,.92); display: none; z-index: 10;
+    align-items: center; justify-content: center; padding: 12px; }
+  .overlay.open { display: flex; }
+  .overlay img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>JARVIS</h1>
+    <span id="monitor" class="hint" style="margin:0"></span>
+    <span id="status" class="pill">bezczynny</span>
+  </header>
+
+  <section class="card">
+    <textarea id="task" placeholder="Co mam zrobić? Np. In Vivaldi pause the YouTube video"></textarea>
+    <div class="row">
+      <label class="check"><input type="checkbox" id="auto"> bez pytania</label>
+      <span class="grow"></span>
+      <button id="start">Start</button>
+    </div>
+    <div id="recent" class="chips"></div>
+    <p class="hint">Głosem: mikrofon na klawiaturze telefonu. Po angielsku model działa najpewniej.</p>
+  </section>
+
+  <section id="current" class="card" hidden>
+    <img id="shot" class="shot" alt="Zrzut ekranu z zaznaczonym celem">
+    <div class="meta"><span id="stepno"></span><span id="zoomlink"></span></div>
+    <p id="thought" class="thought"></p>
+    <div id="action" class="action"></div>
+    <div id="decide" class="decide" hidden>
+      <button class="ok" data-choice="y">Wykonaj</button>
+      <button class="ghost" data-choice="s">Pomiń</button>
+    </div>
+  </section>
+
+  <section id="result" class="card result" hidden></section>
+
+  <details id="history" hidden>
+    <summary>Poprzednie kroki</summary>
+    <div id="hist" class="hist"></div>
+  </details>
+  <details>
+    <summary>Log</summary>
+    <pre id="log" class="log"></pre>
+  </details>
+</main>
+
+<div class="bar"><div class="inner">
+  <button id="live" class="ghost grow">Podgląd ekranu</button>
+  <button id="clear" class="ghost grow" hidden>Wyczyść</button>
+  <button id="stop" class="bad grow" hidden>STOP</button>
+</div></div>
+
+<div id="overlay" class="overlay"><img id="overlayImg" alt="Podgląd"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const STATUS = { idle: "bezczynny", thinking: "myśli…", waiting: "czeka na decyzję", acting: "działa" };
+let version = -1, lastStatus = "idle";
+
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+};
+
+async function api(path, body) {
+  const r = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  if (r.status === 401) { document.body.innerHTML = "<main><p>Brak dostępu. Otwórz link z tokenem z terminala.</p></main>"; throw new Error("401"); }
+  return r.json();
+}
+
+function stepCard(s) {
+  const el = document.createElement("div");
+  el.className = "card";
+  el.innerHTML = `<img class="shot" loading="lazy"><div class="meta"><span></span></div><p class="thought"></p><div class="action"></div>`;
+  el.querySelector("img").src = s.image;
+  el.querySelector("img").onclick = () => openOverlay(s.image);
+  el.querySelector(".meta span").textContent = `Krok ${s.i} · ${s.secs}s`;
+  el.querySelector(".thought").textContent = s.thought;
+  el.querySelector(".action").textContent = s.action;
+  return el;
+}
+
+function render(st) {
+  const busy = st.status !== "idle";
+  $("status").className = "pill " + st.status;
+  $("status").textContent = STATUS[st.status] || st.status;
+  $("monitor").textContent = st.monitor || "";
+  $("start").disabled = busy;
+  $("stop").hidden = !busy;
+  $("clear").hidden = busy || (st.steps.length === 0 && !st.result && st.log.length === 0);
+
+  const cur = st.steps[st.steps.length - 1];
+  $("current").hidden = !cur;
+  if (cur) {
+    if ($("shot").dataset.src !== cur.image) { $("shot").src = cur.image; $("shot").dataset.src = cur.image; }
+    $("shot").onclick = () => openOverlay(cur.image);
+    $("stepno").textContent = `Krok ${cur.i} · ${cur.secs}s`;
+    $("zoomlink").innerHTML = "";
+    if (cur.zoom) {
+      const a = document.createElement("a"); a.href = "#"; a.textContent = "powiększenie";
+      a.style.color = "var(--accent)";
+      a.onclick = (e) => { e.preventDefault(); openOverlay(cur.zoom); };
+      $("zoomlink").append(a);
+    }
+    $("thought").textContent = cur.thought;
+    $("action").textContent = cur.action;
+  }
+  $("decide").hidden = st.status !== "waiting";
+
+  $("result").hidden = !st.result;
+  $("result").textContent = st.result;
+
+  const older = st.steps.slice(0, -1).reverse();
+  $("history").hidden = older.length === 0;
+  $("hist").replaceChildren(...older.map(stepCard));
+  $("log").textContent = st.log.join("\n");
+
+  if (st.status === "waiting" && lastStatus !== "waiting" && navigator.vibrate) navigator.vibrate(120);
+  lastStatus = st.status;
+}
+
+async function poll() {
+  try {
+    const st = await api("/api/state");
+    if (st.version !== version) { version = st.version; render(st); }
+  } catch (e) { if (e.message === "401") return; }
+  setTimeout(poll, lastStatus === "idle" ? 1500 : 500);
+}
+
+function renderRecent() {
+  const recent = store.get("recent", []);
+  $("recent").replaceChildren(...recent.map((t) => {
+    const b = document.createElement("button"); b.className = "chip"; b.textContent = t;
+    b.onclick = () => { $("task").value = t; $("task").focus(); };
+    return b;
+  }));
+}
+
+$("start").onclick = async () => {
+  const task = $("task").value.trim();
+  if (!task) return $("task").focus();
+  const auto = $("auto").checked;
+  store.set("auto", auto);
+  store.set("recent", [task, ...store.get("recent", []).filter((t) => t !== task)].slice(0, 6));
+  renderRecent();
+  const r = await api("/api/run", { task, auto });
+  if (r.error) alert(r.error);
+};
+document.querySelectorAll("#decide button").forEach((b) => b.onclick = () => api("/api/decide", { choice: b.dataset.choice }));
+$("stop").onclick = () => api("/api/stop", {});
+$("clear").onclick = async () => {
+  const r = await api("/api/clear", {});
+  if (r.error) return alert(r.error);
+  $("task").value = "";
+  $("shot").removeAttribute("src"); delete $("shot").dataset.src;
+};
+$("live").onclick = () => openOverlay("/api/live?ts=" + Date.now());
+
+function openOverlay(src) { $("overlayImg").src = src; $("overlay").classList.add("open"); }
+$("overlay").onclick = () => $("overlay").classList.remove("open");
+
+$("auto").checked = store.get("auto", false);
+renderRecent();
+poll();
+</script>
+</body>
+</html>
