@@ -57,6 +57,7 @@ python -m jarvis.agent stop       # albo scripts/jarvis-stop.sh, albo STOP w web
 Pod globalny skrót KDE: Ustawienia systemowe → Skróty → Dodaj nowy → Polecenie lub skrypt → `scripts/jarvis-stop.sh`.
 `scripts/install-killswitch.sh [skrót]` robi to samo z linii poleceń, ale skrót może zadziałać dopiero po ponownym zalogowaniu i nie sprawdza konfliktów z domyślnymi skrótami KDE.
 Każdy przebieg zapisuje się w `runs/<data>/`: zrzuty z zaznaczonym punktem kliknięcia i `steps.jsonl` z surowymi odpowiedziami modelu.
+Przebiegi starsze niż 7 dni znikają automatycznie przy starcie zadania (`JARVIS_KEEP_DAYS` zmienia limit). Ręcznie: `python -m jarvis.agent clean [--days N]`, `--days 0` usuwa wszystkie.
 
 ## Struktura
 

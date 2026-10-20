@@ -11,6 +11,7 @@ import datetime
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 import time
@@ -23,6 +24,25 @@ from . import actions, quick, safety, screen, windows
 from .uitars import Step, UITars
 
 RUNS = Path(__file__).resolve().parent.parent / "runs"
+KEEP_DAYS = float(os.environ.get("JARVIS_KEEP_DAYS", 7))
+
+
+def cleanup_runs(days: float = KEEP_DAYS) -> list[str]:
+    """Delete run logs (runs/YYYYMMDD-HHMMSS) older than `days`. Returns removed names.
+
+    Only directories named like a run are touched, judged by the time in the name.
+    """
+    cutoff = datetime.datetime.now() - datetime.timedelta(days=days)
+    removed = []
+    for d in sorted(RUNS.glob("[0-9]" * 8 + "-" + "[0-9]" * 6)):
+        try:
+            started = datetime.datetime.strptime(d.name, "%Y%m%d-%H%M%S")
+        except ValueError:
+            continue
+        if d.is_dir() and started < cutoff:
+            shutil.rmtree(d)
+            removed.append(d.name)
+    return removed
 
 
 def active_window() -> str | None:
@@ -252,6 +272,8 @@ def run_task(model: UITars, task: str, ui, opt: RunOptions, monitor_hint: str | 
         return
 
     actions.ensure_daemon()
+    if removed := cleanup_runs():
+        ui.event("note", text=f"Removed {len(removed)} run log(s) older than {KEEP_DAYS:g} days")
     app, mon = resolve_target(task, monitor_hint)
     log_dir = RUNS / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     log_dir.mkdir(parents=True)
@@ -351,6 +373,8 @@ def main() -> None:
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("shot")
     sub.add_parser("stop", help="stop a running agent (kill switch)")
+    c = sub.add_parser("clean", help="delete old run logs from runs/")
+    c.add_argument("--days", type=float, default=KEEP_DAYS, help="keep runs newer than this (0 = delete all)")
     g = sub.add_parser("ground")
     g.add_argument("description")
     r = sub.add_parser("run")
@@ -369,6 +393,10 @@ def main() -> None:
     if args.cmd == "stop":
         safety.request_stop()
         print(f"Stop requested ({safety.STOP_FILE}).")
+        return
+    if args.cmd == "clean":
+        removed = cleanup_runs(args.days)
+        print(f"Removed {len(removed)} run log(s) older than {args.days:g} days.")
         return
     model = UITars(args.server, args.coords, args.history, args.language)
     try:

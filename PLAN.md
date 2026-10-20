@@ -23,9 +23,9 @@ Proponowana kolejność: 0 → 1 → 2 → 5 → 8, reszta potem.
 
 ## Wygoda
 
-5. [ ] **Usługi systemd `--user`** dla UI-TARS (llama-server), `ydotoold` i webapki, żeby wszystko startowało z systemem bez otwartych terminali.
+5. [-] (pominięte: autostart niepotrzebny) **Usługi systemd `--user`** dla UI-TARS (llama-server), `ydotoold` i webapki, żeby wszystko startowało z systemem bez otwartych terminali.
 6. [ ] **Szybkość.** Kroki zwalniają z ok. 4 s do ok. 9 s, bo przesuwane okno historii zmienia początek promptu i cache llama.cpp nie działa (ok. 7.5k tokenów liczone od zera co krok). Opcje: `--history 2` albo stabilny prompt (jeden zrzut + historia samym tekstem).
-7. [ ] **Sprzątanie `runs/`.** Każdy krok to ok. 1–2 MB zrzutów. Automatyczne usuwanie przebiegów starszych niż X dni.
+7. [x] **Sprzątanie `runs/`.** Przy starcie każdego zadania znikają przebiegi starsze niż 7 dni (`JARVIS_KEEP_DAYS`), ręcznie `python -m jarvis.agent clean`.
 
 ## Bezpieczeństwo
 
