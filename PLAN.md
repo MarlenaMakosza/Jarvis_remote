@@ -29,8 +29,8 @@ Proponowana kolejność: 0 → 1 → 2 → 5 → 8, reszta potem.
 
 ## Bezpieczeństwo
 
-8. [ ] **Kill-switch pod globalnym skrótem KDE** (np. Meta+Esc), który zatrzymuje agenta. Na telefonie jest STOP, przy komputerze brakuje odpowiednika.
-9. [ ] **Blokady akcji.** Zakaz `type` w oknach terminala. Potwierdzenie mimo trybu "bez pytania" dla skrótów typu `ctrl+w`, `alt+f4`, `ctrl+q`.
+8. [x] **Kill-switch.** `python -m jarvis.agent stop`, `scripts/jarvis-stop.sh` (pod własny skrót KDE) i STOP w webapce. Agent zatrzymuje się przed kolejną akcją.
+9. [x] **Blokady akcji** (`jarvis/safety.py`). Pisanie w terminalu jest dozwolone. Potwierdzenia wymagają: tekst wyglądający na groźną komendę (`sudo`, `rm -rf`, `curl | sh`, `git push`…), polecenia wpisywane w launcher oraz skróty zamykające lub usuwające (`alt+f4`, `ctrl+w`, `ctrl+q`, Delete, Super). Tryb ask pyta o wszystko, auto tylko o te, full o nic.
 
 ## Niesprawdzone (kod jest, testu brak)
 
@@ -49,7 +49,7 @@ Przegląd open source z 2026-10-19: żaden projekt nie łączy lokalnego modelu 
 
 15. [ ] **Tryb ręczny na telefonie** (z [contop](https://github.com/slopedrop/contop)): dotknięcie podglądu ekranu klika w to miejsce na komputerze, bez modelu. Do poprawiania agenta, gdy utknie.
 16. [ ] **Podgląd na żywo** (z contop): odświeżany zrzut lub strumień zamiast jednorazowego "Podgląd ekranu".
-17. [ ] **Tryby ask / auto / full** (z [Open WebUI Computer](https://docs.openwebui.com/ecosystem/computer/)) zamiast jednego przełącznika "bez pytania". Na przykład: ask pyta o wszystko, auto pyta tylko o ryzykowne akcje (punkt 9), full nie pyta wcale.
+17. [x] **Tryby ask / auto / full** (z [Open WebUI Computer](https://docs.openwebui.com/ecosystem/computer/)) zamiast jednego przełącznika "bez pytania". Na przykład: ask pyta o wszystko, auto pyta tylko o ryzykowne akcje (punkt 9), full nie pyta wcale.
 18. [ ] **Sandbox do testów** (z [Bytebot](https://github.com/bytebot-ai/bytebot)): osobny pulpit w kontenerze lub VM do sprawdzania ryzykownych zadań, zanim agent dostanie prawdziwy pulpit.
 
 Do podejrzenia w kodzie: [UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop) (prompty i parser akcji dla tego samego modelu).

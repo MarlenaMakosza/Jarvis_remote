@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from . import actions, quick, screen
+from . import actions, quick, safety, screen
 from .agent import RUNS, RunOptions, run_task
 from .uitars import UITars
 
@@ -76,6 +76,7 @@ class WebUI:
                         "i": d["i"], "secs": round(d["secs"], 1), "thought": d["thought"], "action": d["action"],
                         "image": f"/img/{self.run_id}/{Path(d['image']).name}",
                         "zoom": f"/img/{self.run_id}/{Path(d['zoom']).name}" if d["zoom"] else None,
+                        "risk": d["risk"],
                     })
                     self.status = "acting"
                 case "finished" | "end":
@@ -84,14 +85,14 @@ class WebUI:
             self.log = self.log[-50:]
             self._changed()
 
-    def decide(self) -> str:
+    def decide(self, reason: str = "") -> str:
         with self.lock:
             self.status = "waiting"
             self._choice = None
             self._decided.clear()
             self._changed()
         while not self._decided.wait(0.2):
-            if self._stop.is_set():
+            if self.stopped():
                 return "q"
         with self.lock:
             self.status = "thinking" if self._choice == "s" else "acting"
@@ -99,7 +100,7 @@ class WebUI:
             return self._choice or "q"
 
     def stopped(self) -> bool:
-        return self._stop.is_set()
+        return self._stop.is_set() or safety.stop_requested()
 
     # --- called from HTTP handlers ---
     def set_choice(self, choice: str) -> None:
@@ -145,8 +146,8 @@ class App:
     def monitor(self) -> screen.Monitor:
         return screen.find_monitor(self.args.monitor or os.environ.get("JARVIS_MONITOR"), actions.cursor())
 
-    def run(self, task: str, auto: bool, max_steps: int) -> None:
-        opt = RunOptions(max_side=self.args.max_side, max_steps=max_steps, refine=self.args.refine, auto=auto)
+    def run(self, task: str, mode: str, max_steps: int) -> None:
+        opt = RunOptions(max_side=self.args.max_side, max_steps=max_steps, refine=self.args.refine, mode=mode)
 
         def target():
             try:
@@ -243,7 +244,8 @@ def make_handler(app: App):
                 elif app.ui.busy():
                     self._json({"error": "agent is busy"}, 409)
                 else:
-                    app.run(task, bool(body.get("auto")), int(body.get("max_steps", 15)))
+                    mode = body.get("mode") if body.get("mode") in safety.MODES else "ask"
+                    app.run(task, mode, int(body.get("max_steps", 15)))
                     self._json({"ok": True})
             elif path == "/api/decide":
                 choice = body.get("choice")

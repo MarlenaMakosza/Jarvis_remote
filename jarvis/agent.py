@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import actions, quick, screen, windows
+from . import actions, quick, safety, screen, windows
 from .uitars import Step, UITars
 
 RUNS = Path(__file__).resolve().parent.parent / "runs"
@@ -184,8 +184,8 @@ class RunOptions:
     settle: float = 1.0
     refine: bool = True
     dry_run: bool = False
-    auto: bool = False          # execute without asking (--yolo)
-    quick: bool = True          # try quick actions (jarvis.quick) before the model
+    mode: str = "ask"           # ask, auto, full (see jarvis.safety)
+    quick: bool = True         # try quick actions (jarvis.quick) before the model
     window: bool = True         # capture only the active app window, not the whole monitor
 
 
@@ -228,19 +228,22 @@ class CliUI:
                 print(d["text"])
             case "step":
                 print(f"\n[{d['i']}] ({d['secs']:.1f}s) {d['thought']}\n    -> {d['action']}")
+                if d["risk"]:
+                    print(f"    !! {d['risk']}")
             case "finished":
                 print(f"Finished: {d['text']}")
             case "end":
                 print(d["text"])
 
-    def decide(self) -> str:
+    def decide(self, reason: str = "") -> str:
         return confirm("   ")
 
     def stopped(self) -> bool:
-        return False
+        return safety.stop_requested()
 
 
 def run_task(model: UITars, task: str, ui, opt: RunOptions, monitor_hint: str | None = None) -> None:
+    safety.clear_stop()  # a stale kill-switch file must not stop a new task
     if opt.quick and (q := quick.match(task)):
         ui.event("note", text=f"Quick action: {q.label}")
         if not opt.dry_run:
@@ -258,6 +261,7 @@ def run_task(model: UITars, task: str, ui, opt: RunOptions, monitor_hint: str | 
 
     past: list[tuple[Image.Image, str]] = []
     acted = False  # did we execute an action since the previous screenshot?
+    blocked = ""   # reason the previous action was blocked, told to the model
     for i in range(1, opt.max_steps + 1):
         if ui.stopped():
             ui.event("end", text="Stopped.")
@@ -267,6 +271,10 @@ def run_task(model: UITars, task: str, ui, opt: RunOptions, monitor_hint: str | 
         note = NO_CHANGE if acted and not changed(past[-1][0], shot.image) else ""
         if note:
             ui.event("note", text=f"[{i}] screen unchanged after previous action")
+        if blocked:
+            note = (f"Note: your previous action was blocked by the safety policy ({blocked}). "
+                    "Do not repeat it; choose a different approach or finish.")
+            blocked = ""
         acted = False
         t = time.time()
         try:
@@ -287,16 +295,23 @@ def run_task(model: UITars, task: str, ui, opt: RunOptions, monitor_hint: str | 
         with open(log_dir / "steps.jsonl", "a") as f:
             f.write(json.dumps({"step": i, "raw": step.raw, "global": gpoints}, ensure_ascii=False) + "\n")
 
+        focus = windows.info(window) if window else None
+        verdict = safety.assess(step.action, focus.name if focus else "")
+        risk = {"block": "BLOCKED: ", "confirm": "Risky: "}.get(verdict.level, "") + verdict.reason
         ui.event("step", i=i, secs=time.time() - t, thought=step.thought,
-                 action=describe(step, gpoints), image=image, zoom=zoom)
+                 action=describe(step, gpoints), image=image, zoom=zoom, risk=risk)
         if step.action.kind == "finished":
             ui.event("finished", text=step.action.text if step.action.text.isascii() else step.thought)
             return
+        if verdict.level == "block":
+            blocked = verdict.reason
+            past.append((shot.image, step.raw))
+            continue
         if opt.dry_run:
             past.append((shot.image, step.raw))
             continue
-        if not opt.auto:
-            choice = ui.decide()
+        if safety.needs_confirm(opt.mode, verdict):
+            choice = ui.decide(risk)
             if choice == "q":
                 ui.event("end", text="Stopped.")
                 return
@@ -315,8 +330,8 @@ def run_task(model: UITars, task: str, ui, opt: RunOptions, monitor_hint: str | 
 
 
 def cmd_run(args, model: UITars) -> None:
-    opt = RunOptions(args.max_side, args.max_steps, args.settle, args.refine, args.dry_run, args.yolo,
-                     args.quick, args.window)
+    opt = RunOptions(args.max_side, args.max_steps, args.settle, args.refine, args.dry_run,
+                     "full" if args.yolo else args.mode, args.quick, args.window)
     hint = args.monitor
     if not hint and not (opt.quick and quick.match(args.task)) and not windows.find_app(args.task):
         hint = pick_monitor(args).name  # no app in the task: warn if the model would see this terminal
@@ -335,6 +350,7 @@ def main() -> None:
                    help="skip the zoom-in second grounding pass for clicks")
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("shot")
+    sub.add_parser("stop", help="stop a running agent (kill switch)")
     g = sub.add_parser("ground")
     g.add_argument("description")
     r = sub.add_parser("run")
@@ -342,12 +358,18 @@ def main() -> None:
     r.add_argument("--max-steps", type=int, default=15)
     r.add_argument("--settle", type=float, default=1.0, help="seconds to wait after each action")
     r.add_argument("--dry-run", action="store_true", help="only print actions")
-    r.add_argument("--yolo", action="store_true", help="no confirmation before each action")
+    r.add_argument("--mode", choices=safety.MODES, default="ask",
+                   help="ask: confirm every action, auto: only risky ones, full: never ask (blocked stays blocked)")
+    r.add_argument("--yolo", action="store_true", help="same as --mode full")
     r.add_argument("--no-quick", dest="quick", action="store_false", help="always use the model, no quick actions")
     r.add_argument("--screen", dest="window", action="store_false",
                    help="capture the whole monitor instead of the app window")
     args = p.parse_args()
 
+    if args.cmd == "stop":
+        safety.request_stop()
+        print(f"Stop requested ({safety.STOP_FILE}).")
+        return
     model = UITars(args.server, args.coords, args.history, args.language)
     try:
         {"shot": cmd_shot, "ground": cmd_ground, "run": cmd_run}[args.cmd](args, model)

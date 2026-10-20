@@ -38,7 +38,24 @@ Webapka ma pole polecenia, zrzut z zaznaczonym celem, przyciski Wykonaj / Pomiń
 Token leży w `~/.config/jarvis/token`. Usunięcie pliku i restart serwera unieważnia stare linki.
 Kto ma token, ten steruje komputerem: nie udostępniaj linku i nie wystawiaj portu poza sieć domową.
 
-`run` domyślnie pyta przed każdą akcją (Enter = wykonaj, s = pomiń, q = stop). `--yolo` wyłącza pytanie.
+## Bezpieczeństwo
+
+Tryby potwierdzeń (`--mode` w CLI, przełącznik w webapce):
+
+- `ask` (domyślny): pyta przed każdą akcją (Enter = wykonaj, s = pomiń, q = stop).
+- `auto`: pyta tylko o ryzykowne akcje: tekst wyglądający na groźną komendę (`sudo`, `rm -rf`, `curl | sh`, `git push`…), polecenie wpisane w launcher, skróty zamykające lub usuwające (`alt+f4`, `ctrl+w`, `ctrl+q`, Delete, Super).
+- `full` (albo `--yolo`): nie pyta wcale.
+
+Reguły są w `jarvis/safety.py`. Pisanie w terminalu jest dozwolone.
+
+Zatrzymanie agenta przed kolejną akcją:
+
+```bash
+python -m jarvis.agent stop       # albo scripts/jarvis-stop.sh, albo STOP w webapce
+```
+
+Pod globalny skrót KDE: Ustawienia systemowe → Skróty → Dodaj nowy → Polecenie lub skrypt → `scripts/jarvis-stop.sh`.
+`scripts/install-killswitch.sh [skrót]` robi to samo z linii poleceń, ale skrót może zadziałać dopiero po ponownym zalogowaniu i nie sprawdza konfliktów z domyślnymi skrótami KDE.
 Każdy przebieg zapisuje się w `runs/<data>/`: zrzuty z zaznaczonym punktem kliknięcia i `steps.jsonl` z surowymi odpowiedziami modelu.
 
 ## Struktura
@@ -49,6 +66,8 @@ Każdy przebieg zapisuje się w `runs/<data>/`: zrzuty z zaznaczonym punktem kli
 - `jarvis/agent.py`: pętla agenta (`run_task`, wymienny interfejs UI) i CLI.
 - `jarvis/windows.py`: wyszukiwanie, aktywacja i geometria okien aplikacji (kdotool).
 - `jarvis/quick.py`: szybkie akcje bez modelu: media, głośność, otwieranie stron, uruchamianie i przełączanie aplikacji.
+- `jarvis/safety.py`: tryby potwierdzeń, ocena ryzyka akcji, kill-switch (plik `$XDG_RUNTIME_DIR/jarvis.stop`).
+- `scripts/`: `jarvis-stop.sh` (kill-switch z powiadomieniem) i `install-killswitch.sh`.
 - `jarvis/web.py` + `jarvis/static/`: webapka na telefon (stdlib `http.server`, bez dodatkowych zależności).
 
 ## Ustalenia z testów (2026-10-19)

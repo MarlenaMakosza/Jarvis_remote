@@ -36,6 +36,15 @@
   .row { display: flex; gap: 10px; align-items: center; margin-top: 10px; flex-wrap: wrap; }
   label.check { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
   label.check input { width: 20px; height: 20px; }
+  .seg { display: inline-flex; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 3px; }
+  .seg label { position: relative; }
+  .seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+  .seg span { display: block; padding: 8px 10px; border-radius: 8px; font-size: 14px; color: var(--muted); }
+  .seg input:checked + span { background: var(--accent); color: #fff; }
+  .seg input:focus-visible + span { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .risk { margin: 8px 0 0; padding: 8px 10px; border-radius: 8px; font-size: 14px;
+    background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--text); }
+  .risk.block { background: color-mix(in srgb, var(--bad) 22%, transparent); }
   button { font: inherit; font-weight: 600; border: 0; border-radius: 12px; padding: 12px 16px;
     min-height: 48px; cursor: pointer; color: #fff; background: var(--accent); }
   button:disabled { opacity: .45; }
@@ -92,7 +101,11 @@
   <section class="card">
     <textarea id="task" placeholder="Co mam zrobić? Np. In Vivaldi pause the YouTube video"></textarea>
     <div class="row">
-      <label class="check"><input type="checkbox" id="auto"> bez pytania</label>
+      <div class="seg" id="mode" role="radiogroup" aria-label="Tryb potwierdzeń">
+        <label><input type="radio" name="mode" value="ask" checked><span>pytaj</span></label>
+        <label><input type="radio" name="mode" value="auto"><span>ryzykowne</span></label>
+        <label><input type="radio" name="mode" value="full"><span>bez pytania</span></label>
+      </div>
       <span class="grow"></span>
       <button id="start">Start</button>
     </div>
@@ -105,6 +118,7 @@
     <div class="meta"><span id="stepno"></span><span id="zoomlink"></span></div>
     <p id="thought" class="thought"></p>
     <div id="action" class="action"></div>
+    <p id="risk" class="risk" hidden></p>
     <div id="decide" class="decide" hidden>
       <button class="ok" data-choice="y">Wykonaj</button>
       <button class="ghost" data-choice="s">Pomiń</button>
@@ -184,6 +198,9 @@ function render(st) {
     }
     $("thought").textContent = cur.thought;
     $("action").textContent = cur.action;
+    $("risk").hidden = !cur.risk;
+    $("risk").textContent = cur.risk || "";
+    $("risk").className = "risk" + ((cur.risk || "").startsWith("BLOCKED") ? " block" : "");
   }
   $("decide").hidden = st.status !== "waiting";
 
@@ -219,11 +236,11 @@ function renderRecent() {
 $("start").onclick = async () => {
   const task = $("task").value.trim();
   if (!task) return $("task").focus();
-  const auto = $("auto").checked;
-  store.set("auto", auto);
+  const mode = document.querySelector("input[name=mode]:checked").value;
+  store.set("mode", mode);
   store.set("recent", [task, ...store.get("recent", []).filter((t) => t !== task)].slice(0, 6));
   renderRecent();
-  const r = await api("/api/run", { task, auto });
+  const r = await api("/api/run", { task, mode });
   if (r.error) alert(r.error);
 };
 document.querySelectorAll("#decide button").forEach((b) => b.onclick = () => api("/api/decide", { choice: b.dataset.choice }));
@@ -247,7 +264,7 @@ document.querySelectorAll("[data-quick]").forEach((b) => b.onclick = async () =>
 function openOverlay(src) { $("overlayImg").src = src; $("overlay").classList.add("open"); }
 $("overlay").onclick = () => $("overlay").classList.remove("open");
 
-$("auto").checked = store.get("auto", false);
+{ const m = document.querySelector(`input[name=mode][value="${store.get("mode", "ask")}"]`); if (m) m.checked = true; }
 renderRecent();
 poll();
 </script>
