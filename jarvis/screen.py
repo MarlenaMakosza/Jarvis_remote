@@ -71,8 +71,8 @@ def model_size(width: int, height: int, max_side: int) -> tuple[int, int]:
 @dataclass
 class Shot:
     image: Image.Image   # resized image sent to the model
-    monitor: Monitor
-    native: Image.Image  # monitor crop at full resolution, used for zoom-in refinement
+    monitor: Monitor     # captured region: a whole monitor or one window
+    native: Image.Image  # region crop at full resolution, used for zoom-in refinement
 
     def to_global(self, mx: float, my: float) -> tuple[int, int]:
         """Map model-image pixel coordinates to global KWin pointer coordinates."""
@@ -115,6 +115,7 @@ class Zoom:
 def zoom(shot: Shot, gx: int, gy: int, width: int = 630, height: int = 350, scale: float = 2.0) -> Zoom:
     """Cut a width x height screen region centered on (gx, gy) and magnify it."""
     m = shot.monitor
+    width, height = min(width, m.width), min(height, m.height)  # small windows
     left = min(max(gx - width // 2, m.x), m.x + m.width - width)
     top = min(max(gy - height // 2, m.y), m.y + m.height - height)
     region = shot.native.crop((left - m.x, top - m.y, left - m.x + width, top - m.y + height))

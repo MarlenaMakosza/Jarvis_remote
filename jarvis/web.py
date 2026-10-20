@@ -22,7 +22,7 @@ from urllib.parse import parse_qs, urlparse
 
 from PIL import Image
 
-from . import actions, screen
+from . import actions, quick, screen
 from .agent import RUNS, RunOptions, run_task
 from .uitars import UITars
 
@@ -150,7 +150,7 @@ class App:
 
         def target():
             try:
-                run_task(self.model, self.monitor(), task, self.ui, opt)
+                run_task(self.model, task, self.ui, opt, self.args.monitor)
             except Exception as e:  # report to the phone instead of dying silently
                 self.ui.event("end", text=f"Error: {type(e).__name__}: {e}")
 
@@ -252,6 +252,17 @@ def make_handler(app: App):
                     self._json({"ok": True})
                 else:
                     self._json({"error": "choice must be y, s or q"}, 400)
+            elif path == "/api/quick":
+                q = quick.ACTIONS.get(body.get("name"))
+                if not q:
+                    self._json({"error": f"unknown quick action, one of {list(quick.ACTIONS)}"}, 400)
+                    return
+                try:
+                    q.run()
+                except Exception as e:
+                    self._json({"error": f"{type(e).__name__}: {e}"}, 500)
+                    return
+                self._json({"ok": True, "label": q.label})
             elif path == "/api/clear":
                 if app.ui.busy():
                     self._json({"error": "agent is busy"}, 409)

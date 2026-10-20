@@ -20,7 +20,10 @@ python -m jarvis.agent shot            # zapisz to, co widzi model (runs/shot.pn
 python -m jarvis.agent ground "Save As button"      # przesuń kursor na element, bez klikania
 python -m jarvis.agent run "Open Firefox and go to wikipedia.org"
 python -m jarvis.agent run "..." --dry-run          # tylko wypisuje akcje
-python -m jarvis.agent --monitor DP-4 run "..."     # wybór monitora
+python -m jarvis.agent run "In Vivaldi ..."          # aplikacja z polecenia: agent aktywuje jej okno i widzi tylko je
+python -m jarvis.agent run "..." --screen           # cały monitor zamiast okna
+python -m jarvis.agent run "pause youtube"          # szybka akcja: playerctl, bez modelu (--no-quick wyłącza)
+python -m jarvis.agent --monitor DP-4 run "..."     # wybór monitora, gdy w poleceniu nie ma aplikacji
 export JARVIS_MONITOR=DP-5                          # albo na stałe (domyślnie: monitor pod kursorem)
 ```
 
@@ -44,6 +47,8 @@ Każdy przebieg zapisuje się w `runs/<data>/`: zrzuty z zaznaczonym punktem kli
 - `jarvis/actions.py`: mysz i klawiatura. Ruch kursora w pętli korekcji: ydotool rusza względnie, kdotool odczytuje pozycję.
 - `jarvis/uitars.py`: prompty UI-TARS, zapytania do llama-server, parser akcji.
 - `jarvis/agent.py`: pętla agenta (`run_task`, wymienny interfejs UI) i CLI.
+- `jarvis/windows.py`: wyszukiwanie, aktywacja i geometria okien aplikacji (kdotool).
+- `jarvis/quick.py`: szybkie akcje bez modelu: media, głośność, otwieranie stron, uruchamianie i przełączanie aplikacji.
 - `jarvis/web.py` + `jarvis/static/`: webapka na telefon (stdlib `http.server`, bez dodatkowych zależności).
 
 ## Ustalenia z testów (2026-10-19)

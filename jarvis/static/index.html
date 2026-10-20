@@ -42,6 +42,9 @@
   button.ghost { background: var(--line); color: var(--text); }
   button.ok { background: var(--ok); } button.bad { background: var(--bad); }
   .grow { flex: 1; }
+  .quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .quick button { padding: 10px 6px; font-size: 15px; }
+  .quick .hint { grid-column: 1 / -1; margin: 0; }
   .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
   .chip { font-size: 13px; padding: 6px 10px; border-radius: 99px; background: var(--line); color: var(--text);
     border: 0; min-height: 0; font-weight: 400; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -75,6 +78,16 @@
     <span id="monitor" class="hint" style="margin:0"></span>
     <span id="status" class="pill">bezczynny</span>
   </header>
+
+  <section class="card quick">
+    <button class="ghost" data-quick="previous" aria-label="Poprzedni">⏮</button>
+    <button class="ghost" data-quick="toggle" aria-label="Play/pauza">⏯</button>
+    <button class="ghost" data-quick="next" aria-label="Następny">⏭</button>
+    <button class="ghost" data-quick="vol_down">Ciszej</button>
+    <button class="ghost" data-quick="mute">Wycisz</button>
+    <button class="ghost" data-quick="vol_up">Głośniej</button>
+    <p id="quickMsg" class="hint" hidden></p>
+  </section>
 
   <section class="card">
     <textarea id="task" placeholder="Co mam zrobić? Np. In Vivaldi pause the YouTube video"></textarea>
@@ -222,6 +235,14 @@ $("clear").onclick = async () => {
   $("shot").removeAttribute("src"); delete $("shot").dataset.src;
 };
 $("live").onclick = () => openOverlay("/api/live?ts=" + Date.now());
+let quickTimer;
+document.querySelectorAll("[data-quick]").forEach((b) => b.onclick = async () => {
+  const r = await api("/api/quick", { name: b.dataset.quick });
+  $("quickMsg").textContent = r.error || r.label;
+  $("quickMsg").hidden = false;
+  clearTimeout(quickTimer);
+  quickTimer = setTimeout(() => { $("quickMsg").hidden = true; }, 2500);
+});
 
 function openOverlay(src) { $("overlayImg").src = src; $("overlay").classList.add("open"); }
 $("overlay").onclick = () => $("overlay").classList.remove("open");

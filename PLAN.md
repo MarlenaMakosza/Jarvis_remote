@@ -11,14 +11,14 @@ Proponowana kolejność: 0 → 1 → 2 → 5 → 8, reszta potem.
 
 ## Niezawodność (największy zysk)
 
-1. [ ] **Narzędzia zamiast klikania.** Proste zadania przez komendy, bez modelu wizyjnego:
+1. [~] **Narzędzia zamiast klikania.** Proste zadania przez komendy, bez modelu wizyjnego. Zrobione jako szybkie akcje (`jarvis/quick.py`, dopasowanie krótkich poleceń + przyciski w webapce): media przez playerctl, głośność przez wpctl, `xdg-open`, uruchamianie i przełączanie aplikacji, blokada ekranu. Zostaje: wybór narzędzia przez planner zamiast sztywnych wzorców.
    - `playerctl play-pause` dla "pauza YouTube" (MPRIS w Vivaldi),
    - `xdg-open URL` dla "otwórz stronę X",
    - `kdotool search <app> windowactivate` dla "przełącz na okno".
 
    Agent najpierw próbuje narzędzia, a klika dopiero wtedy, gdy żadne nie pasuje.
-2. [ ] **Automatyczny wybór monitora.** Agent widzi jeden monitor, więc zadanie w aplikacji na innym monitorze się nie uda. Znaleźć okno aplikacji przez `kdotool search`, wziąć jego monitor i aktywować okno.
-3. [ ] **Tryb okna.** Zrzut samego okna aplikacji zamiast całego monitora: znika pasek zadań (źródło pomyłek "Terminal" w Kate vs ikona terminala), a rozdzielczość rośnie przy tej samej liczbie tokenów.
+2. [x] **Automatyczny wybór monitora.** Agent widzi jeden monitor, więc zadanie w aplikacji na innym monitorze się nie uda. Znaleźć okno aplikacji przez `kdotool search`, wziąć jego monitor i aktywować okno.
+3. [x] **Tryb okna.** Zrzut samego okna aplikacji zamiast całego monitora: znika pasek zadań (źródło pomyłek "Terminal" w Kate vs ikona terminala), a rozdzielczość rośnie przy tej samej liczbie tokenów.
 4. [ ] **Planner Qwen3-VL-30B-A3B** (port 8080). Planner opisuje cel i weryfikuje efekt kroku, UI-TARS (`UITars.ground` + refinement) tylko zwraca współrzędne. Rozwiązuje ogłaszanie sukcesu bez sprawdzenia i niejednoznaczne cele.
 
 ## Wygoda

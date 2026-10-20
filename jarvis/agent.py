@@ -19,7 +19,7 @@ from pathlib import Path
 
 from PIL import Image, ImageChops, ImageDraw
 
-from . import actions, screen
+from . import actions, quick, screen, windows
 from .uitars import Step, UITars
 
 RUNS = Path(__file__).resolve().parent.parent / "runs"
@@ -185,6 +185,36 @@ class RunOptions:
     refine: bool = True
     dry_run: bool = False
     auto: bool = False          # execute without asking (--yolo)
+    quick: bool = True          # try quick actions (jarvis.quick) before the model
+    window: bool = True         # capture only the active app window, not the whole monitor
+
+
+def resolve_target(task: str, monitor_hint: str | None) -> tuple[str | None, screen.Monitor]:
+    """Window of the app named in the task (activated) and its monitor.
+
+    Without a recognizable app: no window, monitor from the hint, $JARVIS_MONITOR
+    or the cursor.
+    """
+    if app := windows.find_app(task):
+        wid, rect = app
+        windows.activate(wid)
+        return wid, windows.monitor_of(rect)
+    return None, screen.find_monitor(monitor_hint or os.environ.get("JARVIS_MONITOR"), actions.cursor())
+
+
+def capture_region(opt: RunOptions, app: str | None, mon: screen.Monitor) -> screen.Monitor:
+    """Region to screenshot this step.
+
+    In window mode follow the active window (dialogs and new windows of the app
+    become active), as long as it is a real window on the target monitor.
+    """
+    if not (opt.window and app):
+        return mon
+    act = windows.active()
+    if not act or act[1].name.lower() in windows.IGNORED or windows.monitor_of(act[1]).name != mon.name:
+        return mon
+    region = windows.clip(act[1], mon)
+    return region if region.width >= 400 and region.height >= 300 else mon
 
 
 class CliUI:
@@ -210,12 +240,21 @@ class CliUI:
         return False
 
 
-def run_task(model: UITars, mon: screen.Monitor, task: str, ui, opt: RunOptions) -> None:
+def run_task(model: UITars, task: str, ui, opt: RunOptions, monitor_hint: str | None = None) -> None:
+    if opt.quick and (q := quick.match(task)):
+        ui.event("note", text=f"Quick action: {q.label}")
+        if not opt.dry_run:
+            q.run()
+        ui.event("finished", text=f"Done: {q.label}")
+        return
+
     actions.ensure_daemon()
+    app, mon = resolve_target(task, monitor_hint)
     log_dir = RUNS / datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
     log_dir.mkdir(parents=True)
     (log_dir / "task.txt").write_text(task + "\n")
-    ui.event("start", monitor=mon.name, log_dir=log_dir)
+    where = mon.name + (f" / {windows.info(app).name}" if app else "")
+    ui.event("start", monitor=where, log_dir=log_dir)
 
     past: list[tuple[Image.Image, str]] = []
     acted = False  # did we execute an action since the previous screenshot?
@@ -224,7 +263,7 @@ def run_task(model: UITars, mon: screen.Monitor, task: str, ui, opt: RunOptions)
             ui.event("end", text="Stopped.")
             return
         window = active_window()
-        shot = screen.capture(mon, opt.max_side)
+        shot = screen.capture(capture_region(opt, app, mon), opt.max_side)
         note = NO_CHANGE if acted and not changed(past[-1][0], shot.image) else ""
         if note:
             ui.event("note", text=f"[{i}] screen unchanged after previous action")
@@ -276,8 +315,12 @@ def run_task(model: UITars, mon: screen.Monitor, task: str, ui, opt: RunOptions)
 
 
 def cmd_run(args, model: UITars) -> None:
-    opt = RunOptions(args.max_side, args.max_steps, args.settle, args.refine, args.dry_run, args.yolo)
-    run_task(model, pick_monitor(args), args.task, CliUI(), opt)
+    opt = RunOptions(args.max_side, args.max_steps, args.settle, args.refine, args.dry_run, args.yolo,
+                     args.quick, args.window)
+    hint = args.monitor
+    if not hint and not (opt.quick and quick.match(args.task)) and not windows.find_app(args.task):
+        hint = pick_monitor(args).name  # no app in the task: warn if the model would see this terminal
+    run_task(model, args.task, CliUI(), opt, hint)
 
 
 def main() -> None:
@@ -300,6 +343,9 @@ def main() -> None:
     r.add_argument("--settle", type=float, default=1.0, help="seconds to wait after each action")
     r.add_argument("--dry-run", action="store_true", help="only print actions")
     r.add_argument("--yolo", action="store_true", help="no confirmation before each action")
+    r.add_argument("--no-quick", dest="quick", action="store_false", help="always use the model, no quick actions")
+    r.add_argument("--screen", dest="window", action="store_false",
+                   help="capture the whole monitor instead of the app window")
     args = p.parse_args()
 
     model = UITars(args.server, args.coords, args.history, args.language)
