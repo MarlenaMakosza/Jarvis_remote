@@ -1,149 +1,151 @@
 # JARVIS_REMOTE — research
 
-Zdalne sterowanie komputerem za pomocą lokalnego AI (modele na llama.cpp).
-Research z 2026-10-19. Sprzęt: 24 GB VRAM, 256 GB RAM, Manjaro.
+[Wersja polska](PL/RESEARCH.md)
 
-## Architektura (pętla agenta)
+Remote control of a computer with local AI (models on llama.cpp).
+Research from 2026-10-19. Hardware: 24 GB VRAM, 256 GB RAM, Manjaro.
+
+## Architecture (agent loop)
 
 ```
-screenshot / drzewo a11y  ->  VLM (llama-server, OpenAI API)  ->  akcja JSON  ->  executor (mysz/klawiatura/shell)  ->  znowu screenshot
+screenshot / a11y tree  ->  VLM (llama-server, OpenAI API)  ->  JSON action  ->  executor (mouse/keyboard/shell)  ->  screenshot again
 ```
 
-Każdy krok to jedna akcja, potem weryfikacja nowym screenshotem.
+Each step is one action, then verification with a new screenshot.
 
-## Modele (GGUF + mmproj)
+## Models (GGUF + mmproj)
 
-- **UI-TARS-1.5-7B**: model od ByteDance trenowany specjalnie pod GUI. Jest w GGUF od bartowski i mradermacher. Dobry start.
-- **Qwen2.5-VL / Qwen3-VL**: mocny grounding (współrzędne kliknięć). Qwen3-VL-8B lub 30B-A3B daje dobry stosunek jakości do VRAM.
-- **Holo1.5 / Holo2 (H Company)**: małe modele 3B–7B pod lokalizację elementów. Nadają się na tani "localizer".
-- **GUI-Actor, OS-Atlas, ShowUI**: modele tylko do groundingu, warte sprawdzenia.
-- **Split ról**: duży model planuje ("co kliknąć"), mały VLM zwraca współrzędne ("gdzie"). Taki split daje dużo lepsze wyniki niż jeden model do wszystkiego.
+- **UI-TARS-1.5-7B**: a ByteDance model trained specifically for GUIs. Available as GGUF from bartowski and mradermacher. Good start.
+- **Qwen2.5-VL / Qwen3-VL**: strong grounding (click coordinates). Qwen3-VL-8B or 30B-A3B gives a good quality-to-VRAM ratio.
+- **Holo1.5 / Holo2 (H Company)**: small 3B–7B models for locating elements. Suitable as a cheap "localizer".
+- **GUI-Actor, OS-Atlas, ShowUI**: grounding-only models, worth checking.
+- **Role split**: a large model plans ("what to click"), a small VLM returns coordinates ("where"). This split gives much better results than one model for everything.
 
-Odpalanie (pojedynczy model):
+Running (single model):
 
 ```bash
 llama-server -m Qwen3-VL-8B-Q5_K_M.gguf --mmproj mmproj-Qwen3-VL-8B-f16.gguf \
   --jinja -c 16384 -ngl 99 --host 127.0.0.1 --port 8080
 ```
 
-Pułapka ze współrzędnymi:
+Coordinate pitfall:
 
-- Qwen2.5-VL zwraca piksele obrazu po resize.
-- Qwen3-VL zwraca skalę 0–1000.
-- UI-TARS liczy na obrazie po smart_resize.
+- Qwen2.5-VL returns pixels of the resized image.
+- Qwen3-VL returns a 0–1000 scale.
+- UI-TARS works on the image after smart_resize.
 
-Przeskaluj współrzędne do rozdzielczości ekranu, inaczej kliknięcia lądują obok celu.
+Rescale the coordinates to the screen resolution, otherwise clicks land next to the target.
 
-## Gotowe frameworki (podpinasz endpoint llama-server)
+## Ready-made frameworks (plug in the llama-server endpoint)
 
-- **UI-TARS-desktop** (ByteDance): apka desktopowa, przyjmuje dowolny endpoint OpenAI-compatible.
-- **Agent S2/S3** (Simular): split planner/grounder, wysokie wyniki na OSWorld.
-- **OmniParser v2** (Microsoft): wykrywa elementy UI i numeruje je (set-of-marks). Wtedy nawet słaby model tekstowy wybiera tylko "kliknij #14".
-- **Browser Use**: tylko przeglądarka, za to bardzo niezawodny.
-- **computer_use_ootb** (showlab), **Computer-Use-Agent** (Holo2-4B): lekkie i lokalne.
-- **open-computer-use** (E2B): sandbox w chmurze, nie lokalnie, ale architekturę warto podejrzeć.
-- **MCP**: serwery desktop-control plus klient (OpenCode, Jan) z lokalnym modelem.
+- **UI-TARS-desktop** (ByteDance): desktop app, accepts any OpenAI-compatible endpoint.
+- **Agent S2/S3** (Simular): planner/grounder split, high scores on OSWorld.
+- **OmniParser v2** (Microsoft): detects UI elements and numbers them (set-of-marks). Then even a weak text model only picks "click #14".
+- **Browser Use**: browser only, but very reliable.
+- **computer_use_ootb** (showlab), **Computer-Use-Agent** (Holo2-4B): lightweight and local.
+- **open-computer-use** (E2B): cloud sandbox, not local, but the architecture is worth a look.
+- **MCP**: desktop-control servers plus a client (OpenCode, Jan) with a local model.
 
-## Executor na Linuxie (Manjaro)
+## Executor on Linux (Manjaro)
 
 - X11: `xdotool`, `scrot`/`maim`.
-- Wayland: `ydotool` (uinput, działa wszędzie), `dotool`, `wtype`, `grim` do screenshotów. Na KDE są `kdotool` i `spectacle -b`.
-- Porządne rozwiązanie pod Wayland: portal `org.freedesktop.portal.RemoteDesktop` + libei.
-- **AT-SPI (pyatspi)**: drzewo dostępności GTK/Qt/Firefox z nazwami i pozycjami przycisków. Jest 10x tańsze niż vision. Najpierw próbuj a11y, vision zostaw jako fallback.
-- Shell jako narzędzie: często `xdg-open`, `playerctl` czy `kdialog` zrobią robotę szybciej niż klikanie.
+- Wayland: `ydotool` (uinput, works everywhere), `dotool`, `wtype`, `grim` for screenshots. KDE has `kdotool` and `spectacle -b`.
+- The proper Wayland solution: the `org.freedesktop.portal.RemoteDesktop` portal + libei.
+- **AT-SPI (pyatspi)**: GTK/Qt/Firefox accessibility tree with button names and positions. It is 10x cheaper than vision. Try a11y first, keep vision as a fallback.
+- Shell as a tool: `xdg-open`, `playerctl` or `kdialog` often do the job faster than clicking.
 
-## Pomysły na "remote"
+## "Remote" ideas
 
-- Bot Telegram/Matrix na kompie. Piszesz z telefonu "otwórz X i zrób Y", agent odsyła screenshot i wynik.
-- Głos: whisper.cpp (STT) + piper (TTS), wszystko lokalne.
-- Webapp na Tailscale: podgląd na żywo (noVNC) + pole komendy + przycisk STOP.
-- Tryb "nagraj i powtórz": agent obserwuje twoje kroki i robi z nich makro.
-- Agent jako dodatkowy monitor: wirtualny output (Xvfb albo headless output w KWin), więc agent działa obok i nie zabiera ci myszy.
+- Telegram/Matrix bot on the computer. You write from the phone "open X and do Y", the agent sends back a screenshot and the result.
+- Voice: whisper.cpp (STT) + piper (TTS), all local.
+- Web app over Tailscale: live preview (noVNC) + command field + STOP button.
+- "Record and replay" mode: the agent watches your steps and turns them into a macro.
+- Agent as an extra monitor: a virtual output (Xvfb or a headless output in KWin), so the agent works alongside you and does not take your mouse.
 
-## Bezpieczeństwo
+## Safety
 
-Agent z dostępem do myszy, klawiatury i shella może zrobić dowolną szkodę. Prompt injection działa też przez treść na ekranie: strona może "kazać" agentowi coś wykonać.
+An agent with access to the mouse, keyboard and shell can do any damage. Prompt injection also works through on-screen content: a web page can "tell" the agent to do something.
 
-- Testuj najpierw w VM albo kontenerze (Xvfb + noVNC).
-- Dodaj allowlistę komend i potwierdzanie akcji destrukcyjnych.
-- Daj kill-switch (hotkey).
-- Endpoint llama-server wystaw tylko na `127.0.0.1` lub w Tailscale, nigdy publicznie.
+- Test in a VM or container first (Xvfb + noVNC).
+- Add a command allowlist and confirmation of destructive actions.
+- Provide a kill switch (hotkey).
+- Expose the llama-server endpoint only on `127.0.0.1` or in Tailscale, never publicly.
 
-## Szybki MVP (1 wieczór)
+## Quick MVP (1 evening)
 
-1. Postaw llama-server z Qwen3-VL-8B lub UI-TARS-1.5-7B.
-2. Napisz pętlę w Pythonie: `grim` robi screenshot, wysyłasz base64 do `/v1/chat/completions` z promptem "zwróć jedną akcję JSON: click(x,y) | type(text) | key(combo) | done", potem `ydotool`.
-3. Dodaj limit kroków i log screenshotów.
-4. Dopiero potem rób bota Telegram, a11y i split planner/grounder.
+1. Start llama-server with Qwen3-VL-8B or UI-TARS-1.5-7B.
+2. Write a loop in Python: `grim` takes a screenshot, you send base64 to `/v1/chat/completions` with the prompt "return one JSON action: click(x,y) | type(text) | key(combo) | done", then `ydotool`.
+3. Add a step limit and a screenshot log.
+4. Only then build the Telegram bot, a11y and the planner/grounder split.
 
 ---
 
-## Split ról na 24 GB VRAM + 256 GB RAM
+## Role split on 24 GB VRAM + 256 GB RAM
 
-UI-TARS-1.5-7B sam da radę z dużym zapasem, ale split ról wychodzi najlepiej.
+UI-TARS-1.5-7B alone fits with plenty of headroom, but the role split works best.
 
-### Sam UI-TARS-1.5-7B
+### UI-TARS-1.5-7B alone
 
-- Q8_0 to ok. 8 GB, mmproj ok. 1.3 GB, kontekst kilka GB. Razem ok. 12 GB, cały model na GPU.
-- **Dla groundera bierz Q8 albo F16, nie Q4.** Kwantyzacja psuje precyzję współrzędnych, a planner nie jest na nią tak wrażliwy.
-- Słabe strony: planowanie długich zadań. Model gubi się po 10+ krokach i słabo się "zastanawia". Dlatego robi się split.
+- Q8_0 is about 8 GB, mmproj about 1.3 GB, context a few GB. About 12 GB in total, the whole model on the GPU.
+- **For the grounder use Q8 or F16, not Q4.** Quantization hurts coordinate precision, and the planner is not as sensitive to it.
+- Weaknesses: planning long tasks. The model gets lost after 10+ steps and "reasons" poorly. That is why the split is used.
 
-### Grounder (cały na GPU, ok. 10–12 GB)
+### Grounder (fully on GPU, about 10–12 GB)
 
-- UI-TARS-1.5-7B Q8, albo
-- Qwen3-VL-8B Q8. Ma podobny grounding, lepiej trzyma format JSON, zwraca współrzędne 0–1000.
-- Jako alternatywę testuj Holo2 (mniejszy i szybszy).
+- UI-TARS-1.5-7B Q8, or
+- Qwen3-VL-8B Q8. Similar grounding, keeps the JSON format better, returns 0–1000 coordinates.
+- Test Holo2 as an alternative (smaller and faster).
 
-### Planner (eksperci MoE w RAM, attention na GPU, ok. 8–10 GB VRAM)
+### Planner (MoE experts in RAM, attention on GPU, about 8–10 GB VRAM)
 
-- **Qwen3-VL-30B-A3B** (Q6/Q8): widzi screenshot, jest szybki (3B aktywnych), zrobi kilkadziesiąt t/s. Start od tego.
-- **Qwen3-VL-235B-A22B** (Q4 ok. 130 GB w RAM): najmądrzejszy planner z wizją. Wolny, rzędu kilku t/s, zależnie od przepustowości RAM. Wystarczy, bo planner zwraca krótkie odpowiedzi.
-- **gpt-oss-120b / GLM-4.5-Air**: tylko tekst. Mają sens z drzewem a11y (AT-SPI) albo OmniParserem zamiast screenshota.
+- **Qwen3-VL-30B-A3B** (Q6/Q8): sees the screenshot, is fast (3B active), does tens of t/s. Start with this one.
+- **Qwen3-VL-235B-A22B** (Q4 about 130 GB in RAM): the smartest planner with vision. Slow, a few t/s, depending on RAM bandwidth. Enough, because the planner returns short answers.
+- **gpt-oss-120b / GLM-4.5-Air**: text only. They make sense with an a11y tree (AT-SPI) or OmniParser instead of a screenshot.
 
-### Odpalanie (dwa serwery)
+### Running (two servers)
 
 ```bash
-# grounder: cały na GPU
+# grounder: fully on GPU
 llama-server -m UI-TARS-1.5-7B-Q8_0.gguf --mmproj mmproj-UI-TARS-1.5-7B-f16.gguf \
   -ngl 99 -c 8192 --port 8081 --host 127.0.0.1
 
-# planner: eksperci MoE na CPU, reszta na GPU
+# planner: MoE experts on CPU, the rest on GPU
 llama-server -m Qwen3-VL-30B-A3B-Instruct-Q8_0.gguf --mmproj mmproj-Qwen3-VL-30B-A3B-f16.gguf \
   -ngl 99 --n-cpu-moe 48 -c 32768 --jinja --port 8080 --host 127.0.0.1
 ```
 
-Stroisz `--n-cpu-moe`: zmniejszaj wartość, dopóki suma VRAM obu serwerów mieści się w ok. 22 GB. Dla 235B ustaw prawie wszystkie warstwy na CPU i `-t` równe liczbie fizycznych rdzeni.
+Tune `--n-cpu-moe`: lower the value while the combined VRAM of both servers fits in about 22 GB. For 235B put almost all layers on the CPU and set `-t` to the number of physical cores.
 
-### Podział pracy
+### Division of work
 
-1. Planner dostaje cel, historię kroków i screenshot (zmniejszony, np. 1280x720). Zwraca `{"action":"click","target":"przycisk Zapisz w prawym górnym rogu"}` albo `type` / `key` / `shell` / `done`.
-2. Grounder dostaje screenshot i opis `target`. Zwraca tylko współrzędne.
-3. Executor skaluje współrzędne do rozdzielczości ekranu i wykonuje akcję (`ydotool`/`xdotool`).
-4. Planner dostaje nowy screenshot i ocenia, czy akcja zadziałała.
+1. The planner gets the goal, step history and a screenshot (downscaled, e.g. 1280x720). It returns `{"action":"click","target":"Save button in the top right corner"}` or `type` / `key` / `shell` / `done`.
+2. The grounder gets the screenshot and the `target` description. It returns only coordinates.
+3. The executor scales the coordinates to the screen resolution and performs the action (`ydotool`/`xdotool`).
+4. The planner gets a new screenshot and judges whether the action worked.
 
-### Pułapki
+### Pitfalls
 
-- **Skalowanie:** sam zmniejszaj screenshot do znanej rozdzielczości przed wysłaniem. Wtedy wiesz, w jakim układzie są współrzędne. Sprawdź, czy twoja wersja llama.cpp nie skaluje obrazu po swojemu (flagi `--image-min-tokens`/`--image-max-tokens` w nowszych buildach).
-- **Prompt UI-TARS:** model oczekuje swojego formatu (`Thought: ... Action: click(start_box='(x,y)')`). Używaj oficjalnego szablonu z repo, nie własnego JSON.
-- **Wspólne GPU:** dwa serwery konkurują o GPU. Na pojedynczym kroku to nie przeszkadza, bo planner i grounder działają po kolei.
+- **Scaling:** downscale the screenshot yourself to a known resolution before sending it. Then you know which coordinate system you are in. Check that your llama.cpp version does not rescale the image on its own (`--image-min-tokens`/`--image-max-tokens` flags in newer builds).
+- **UI-TARS prompt:** the model expects its own format (`Thought: ... Action: click(start_box='(x,y)')`). Use the official template from the repo, not your own JSON.
+- **Shared GPU:** two servers compete for the GPU. For a single step this does not matter, because the planner and grounder run one after another.
 
-### Kolejność testów
+### Test order
 
-1. Sam Qwen3-VL-30B-A3B jako planner i grounder w jednym, żeby mieć baseline.
-2. Dodaj UI-TARS jako grounder i porównaj trafność kliknięć.
-3. Przy złożonych zadaniach podmień planner na 235B.
+1. Qwen3-VL-30B-A3B alone as planner and grounder in one, to get a baseline.
+2. Add UI-TARS as the grounder and compare click accuracy.
+3. For complex tasks swap the planner for 235B.
 
 ---
 
-## Pobieranie modeli
+## Downloading models
 
-Cel: `/home/lenerystia/Models/llama.cpp-cache`. Nazwy plików sprawdzone w HF API.
+Target: `/home/lenerystia/Models/llama.cpp-cache`. File names checked against the HF API.
 
-### Opcja A: `hf` CLI
+### Option A: `hf` CLI
 
 ```bash
-uv tool install huggingface_hub   # albo: pipx install huggingface_hub
-export HF_XET_HIGH_PERFORMANCE=1   # HF_HUB_ENABLE_HF_TRANSFER jest deprecated
+uv tool install huggingface_hub   # or: pipx install huggingface_hub
+export HF_XET_HIGH_PERFORMANCE=1   # HF_HUB_ENABLE_HF_TRANSFER is deprecated
 M=/home/lenerystia/Models/llama.cpp-cache
 
 # Grounder 1: UI-TARS-1.5-7B Q8 (~8 GB + ~1.3 GB mmproj)
@@ -161,15 +163,15 @@ hf download unsloth/Qwen3-VL-30B-A3B-Instruct-GGUF \
   Qwen3-VL-30B-A3B-Instruct-Q8_0.gguf mmproj-F16.gguf \
   --local-dir $M/Qwen3-VL-30B-A3B-Instruct
 
-# Duży planner (opcjonalny): Qwen3-VL-235B-A22B UD-Q4_K_XL (~135 GB, 3 shardy)
+# Large planner (optional): Qwen3-VL-235B-A22B UD-Q4_K_XL (~135 GB, 3 shards)
 hf download unsloth/Qwen3-VL-235B-A22B-Instruct-GGUF \
   --include "UD-Q4_K_XL/*" "mmproj-F16.gguf" \
   --local-dir $M/Qwen3-VL-235B-A22B-Instruct
 ```
 
-Każdy model do osobnego folderu: repo unsloth mają mmproj o tej samej nazwie (`mmproj-F16.gguf`).
+Each model in its own folder: the unsloth repos have an mmproj with the same name (`mmproj-F16.gguf`).
 
-### Opcja B: wbudowane `-hf` w llama.cpp
+### Option B: built-in `-hf` in llama.cpp
 
 ```bash
 export LLAMA_CACHE=/home/lenerystia/Models/llama.cpp-cache
@@ -179,13 +181,13 @@ llama-server -hf unsloth/Qwen3-VL-30B-A3B-Instruct-GGUF:Q8_0 --port 8080
 llama-server -hf unsloth/Qwen3-VL-235B-A22B-Instruct-GGUF:UD-Q4_K_XL --port 8083
 ```
 
-llama.cpp sam pobiera model i pasujący mmproj. Komendy od razu uruchamiają serwer.
+llama.cpp downloads the model and the matching mmproj itself. The commands start the server right away.
 
-Razem ok. 185 GB z 235B, ok. 50 GB bez niego. Na start wystarczy UI-TARS i 30B-A3B.
+About 185 GB in total with 235B, about 50 GB without it. UI-TARS and 30B-A3B are enough to start.
 
 ---
 
-## Źródła
+## Sources
 
 - [Computer-Use-Agent (Holo2-4B)](https://github.com/BrAtUkA/Computer-Use-Agent)
 - [Local GUI agent, LLM-as-Judge (arXiv)](https://arxiv.org/html/2506.03095v1)

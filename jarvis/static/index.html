@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pl">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
@@ -85,50 +85,50 @@
   <header>
     <h1>JARVIS</h1>
     <span id="monitor" class="hint" style="margin:0"></span>
-    <span id="status" class="pill">bezczynny</span>
+    <span id="status" class="pill">idle</span>
   </header>
 
   <section class="card quick">
-    <button class="ghost" data-quick="previous" aria-label="Poprzedni">⏮</button>
-    <button class="ghost" data-quick="toggle" aria-label="Play/pauza">⏯</button>
-    <button class="ghost" data-quick="next" aria-label="Następny">⏭</button>
-    <button class="ghost" data-quick="vol_down">Ciszej</button>
-    <button class="ghost" data-quick="mute">Wycisz</button>
-    <button class="ghost" data-quick="vol_up">Głośniej</button>
+    <button class="ghost" data-quick="previous" aria-label="Previous">⏮</button>
+    <button class="ghost" data-quick="toggle" aria-label="Play/pause">⏯</button>
+    <button class="ghost" data-quick="next" aria-label="Next">⏭</button>
+    <button class="ghost" data-quick="vol_down">Quieter</button>
+    <button class="ghost" data-quick="mute">Mute</button>
+    <button class="ghost" data-quick="vol_up">Louder</button>
     <p id="quickMsg" class="hint" hidden></p>
   </section>
 
   <section class="card">
-    <textarea id="task" placeholder="Co mam zrobić? Np. In Vivaldi pause the YouTube video"></textarea>
+    <textarea id="task" placeholder="What should I do? E.g. In Vivaldi pause the YouTube video"></textarea>
     <div class="row">
-      <div class="seg" id="mode" role="radiogroup" aria-label="Tryb potwierdzeń">
-        <label><input type="radio" name="mode" value="ask" checked><span>pytaj</span></label>
-        <label><input type="radio" name="mode" value="auto"><span>ryzykowne</span></label>
-        <label><input type="radio" name="mode" value="full"><span>bez pytania</span></label>
+      <div class="seg" id="mode" role="radiogroup" aria-label="Confirmation mode">
+        <label><input type="radio" name="mode" value="ask" checked><span>ask</span></label>
+        <label><input type="radio" name="mode" value="auto"><span>risky only</span></label>
+        <label><input type="radio" name="mode" value="full"><span>no prompts</span></label>
       </div>
       <span class="grow"></span>
       <button id="start">Start</button>
     </div>
     <div id="recent" class="chips"></div>
-    <p class="hint">Głosem: mikrofon na klawiaturze telefonu. Po angielsku model działa najpewniej.</p>
+    <p class="hint">Voice: use the microphone on the phone keyboard. The model is most reliable in English.</p>
   </section>
 
   <section id="current" class="card" hidden>
-    <img id="shot" class="shot" alt="Zrzut ekranu z zaznaczonym celem">
+    <img id="shot" class="shot" alt="Screenshot with the target marked">
     <div class="meta"><span id="stepno"></span><span id="zoomlink"></span></div>
     <p id="thought" class="thought"></p>
     <div id="action" class="action"></div>
     <p id="risk" class="risk" hidden></p>
     <div id="decide" class="decide" hidden>
-      <button class="ok" data-choice="y">Wykonaj</button>
-      <button class="ghost" data-choice="s">Pomiń</button>
+      <button class="ok" data-choice="y">Run</button>
+      <button class="ghost" data-choice="s">Skip</button>
     </div>
   </section>
 
   <section id="result" class="card result" hidden></section>
 
   <details id="history" hidden>
-    <summary>Poprzednie kroki</summary>
+    <summary>Previous steps</summary>
     <div id="hist" class="hist"></div>
   </details>
   <details>
@@ -138,16 +138,16 @@
 </main>
 
 <div class="bar"><div class="inner">
-  <button id="live" class="ghost grow">Podgląd ekranu</button>
-  <button id="clear" class="ghost grow" hidden>Wyczyść</button>
+  <button id="live" class="ghost grow">Screen preview</button>
+  <button id="clear" class="ghost grow" hidden>Clear</button>
   <button id="stop" class="bad grow" hidden>STOP</button>
 </div></div>
 
-<div id="overlay" class="overlay"><img id="overlayImg" alt="Podgląd"></div>
+<div id="overlay" class="overlay"><img id="overlayImg" alt="Preview"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
-const STATUS = { idle: "bezczynny", thinking: "myśli…", waiting: "czeka na decyzję", acting: "działa" };
+const STATUS = { idle: "idle", thinking: "thinking…", waiting: "awaiting decision", acting: "acting" };
 let version = -1, lastStatus = "idle";
 
 const store = {
@@ -158,7 +158,7 @@ const store = {
 async function api(path, body) {
   const r = await fetch(path, body === undefined ? {} : {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  if (r.status === 401) { document.body.innerHTML = "<main><p>Brak dostępu. Otwórz link z tokenem z terminala.</p></main>"; throw new Error("401"); }
+  if (r.status === 401) { document.body.innerHTML = "<main><p>Access denied. Open the link with the token from the terminal.</p></main>"; throw new Error("401"); }
   return r.json();
 }
 
@@ -168,7 +168,7 @@ function stepCard(s) {
   el.innerHTML = `<img class="shot" loading="lazy"><div class="meta"><span></span></div><p class="thought"></p><div class="action"></div>`;
   el.querySelector("img").src = s.image;
   el.querySelector("img").onclick = () => openOverlay(s.image);
-  el.querySelector(".meta span").textContent = `Krok ${s.i} · ${s.secs}s`;
+  el.querySelector(".meta span").textContent = `Step ${s.i} · ${s.secs}s`;
   el.querySelector(".thought").textContent = s.thought;
   el.querySelector(".action").textContent = s.action;
   return el;
@@ -188,10 +188,10 @@ function render(st) {
   if (cur) {
     if ($("shot").dataset.src !== cur.image) { $("shot").src = cur.image; $("shot").dataset.src = cur.image; }
     $("shot").onclick = () => openOverlay(cur.image);
-    $("stepno").textContent = `Krok ${cur.i} · ${cur.secs}s`;
+    $("stepno").textContent = `Step ${cur.i} · ${cur.secs}s`;
     $("zoomlink").innerHTML = "";
     if (cur.zoom) {
-      const a = document.createElement("a"); a.href = "#"; a.textContent = "powiększenie";
+      const a = document.createElement("a"); a.href = "#"; a.textContent = "zoom";
       a.style.color = "var(--accent)";
       a.onclick = (e) => { e.preventDefault(); openOverlay(cur.zoom); };
       $("zoomlink").append(a);

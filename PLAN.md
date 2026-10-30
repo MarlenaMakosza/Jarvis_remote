@@ -1,55 +1,57 @@
 # JARVIS_REMOTE — plan
 
-Stan na 2026-10-19: działa UI-TARS-1.5-7B (sam, bez plannera) z drugim etapem celowania, CLI i webapka na telefon w LAN.
+[Wersja polska](PL/PLAN.md)
 
-Proponowana kolejność: 0 → 1 → 2 → 5 → 8, reszta potem.
+Status as of 2026-10-19: UI-TARS-1.5-7B works (alone, no planner) with a second targeting pass, a CLI and a phone web app on the LAN.
 
-## 0. Do zrobienia od razu
+Proposed order: 0 → 1 → 2 → 5 → 8, the rest later.
 
-- [ ] `git init` w `JARVIS_REMOTE`. Teraz katalog nie jest repo, więc zmian nie da się cofnąć bez kopii.
-- [ ] Pobrać planner Qwen3-VL-30B-A3B-Instruct (komenda w [RESEARCH.md](RESEARCH.md#pobieranie-modeli)).
+## 0. To do right away
 
-## Niezawodność (największy zysk)
+- [ ] `git init` in `JARVIS_REMOTE`. The directory is not a repo yet, so changes cannot be undone without a copy.
+- [ ] Download the Qwen3-VL-30B-A3B-Instruct planner (command in [RESEARCH.md](RESEARCH.md#downloading-models)).
 
-1. [~] **Narzędzia zamiast klikania.** Proste zadania przez komendy, bez modelu wizyjnego. Zrobione jako szybkie akcje (`jarvis/quick.py`, dopasowanie krótkich poleceń + przyciski w webapce): media przez playerctl, głośność przez wpctl, `xdg-open`, uruchamianie i przełączanie aplikacji, blokada ekranu. Zostaje: wybór narzędzia przez planner zamiast sztywnych wzorców.
-   - `playerctl play-pause` dla "pauza YouTube" (MPRIS w Vivaldi),
-   - `xdg-open URL` dla "otwórz stronę X",
-   - `kdotool search <app> windowactivate` dla "przełącz na okno".
+## Reliability (biggest win)
 
-   Agent najpierw próbuje narzędzia, a klika dopiero wtedy, gdy żadne nie pasuje.
-2. [x] **Automatyczny wybór monitora.** Agent widzi jeden monitor, więc zadanie w aplikacji na innym monitorze się nie uda. Znaleźć okno aplikacji przez `kdotool search`, wziąć jego monitor i aktywować okno.
-3. [x] **Tryb okna.** Zrzut samego okna aplikacji zamiast całego monitora: znika pasek zadań (źródło pomyłek "Terminal" w Kate vs ikona terminala), a rozdzielczość rośnie przy tej samej liczbie tokenów.
-4. [ ] **Planner Qwen3-VL-30B-A3B** (port 8080). Planner opisuje cel i weryfikuje efekt kroku, UI-TARS (`UITars.ground` + refinement) tylko zwraca współrzędne. Rozwiązuje ogłaszanie sukcesu bez sprawdzenia i niejednoznaczne cele.
+1. [~] **Tools instead of clicking.** Simple tasks through commands, without the vision model. Done as quick actions (`jarvis/quick.py`, matching short commands + buttons in the web app): media through playerctl, volume through wpctl, `xdg-open`, launching and switching apps, screen lock. Remaining: the planner picks the tool instead of fixed patterns.
+   - `playerctl play-pause` for "pause YouTube" (MPRIS in Vivaldi),
+   - `xdg-open URL` for "open site X",
+   - `kdotool search <app> windowactivate` for "switch to window".
 
-## Wygoda
+   The agent tries a tool first and clicks only when no tool fits.
+2. [x] **Automatic monitor selection.** The agent sees one monitor, so a task in an app on another monitor fails. Find the app window with `kdotool search`, take its monitor and activate the window.
+3. [x] **Window mode.** Screenshot of the app window only instead of the whole monitor: the taskbar disappears (a source of "Terminal" in Kate vs terminal icon mix-ups), and resolution goes up for the same number of tokens.
+4. [ ] **Qwen3-VL-30B-A3B planner** (port 8080). The planner describes the target and verifies the result of each step, UI-TARS (`UITars.ground` + refinement) only returns coordinates. Fixes announcing success without checking and ambiguous targets.
 
-5. [-] (pominięte: autostart niepotrzebny) **Usługi systemd `--user`** dla UI-TARS (llama-server), `ydotoold` i webapki, żeby wszystko startowało z systemem bez otwartych terminali.
-6. [ ] **Szybkość.** Kroki zwalniają z ok. 4 s do ok. 9 s, bo przesuwane okno historii zmienia początek promptu i cache llama.cpp nie działa (ok. 7.5k tokenów liczone od zera co krok). Opcje: `--history 2` albo stabilny prompt (jeden zrzut + historia samym tekstem).
-7. [x] **Sprzątanie `runs/`.** Przy starcie każdego zadania znikają przebiegi starsze niż 7 dni (`JARVIS_KEEP_DAYS`), ręcznie `python -m jarvis.agent clean`.
+## Convenience
 
-## Bezpieczeństwo
+5. [-] (skipped: autostart not needed) **systemd `--user` services** for UI-TARS (llama-server), `ydotoold` and the web app, so everything starts with the system without open terminals.
+6. [ ] **Speed.** Steps slow down from about 4 s to about 9 s, because the sliding history window changes the start of the prompt and the llama.cpp cache stops working (about 7.5k tokens computed from scratch every step). Options: `--history 2` or a stable prompt (one screenshot + text-only history).
+7. [x] **Cleaning up `runs/`.** When each task starts, runs older than 7 days are deleted (`JARVIS_KEEP_DAYS`), manually `python -m jarvis.agent clean`.
 
-8. [x] **Kill-switch.** `python -m jarvis.agent stop`, `scripts/jarvis-stop.sh` (pod własny skrót KDE) i STOP w webapce. Agent zatrzymuje się przed kolejną akcją.
-9. [x] **Blokady akcji** (`jarvis/safety.py`). Pisanie w terminalu jest dozwolone. Potwierdzenia wymagają: tekst wyglądający na groźną komendę (`sudo`, `rm -rf`, `curl | sh`, `git push`…), polecenia wpisywane w launcher oraz skróty zamykające lub usuwające (`alt+f4`, `ctrl+w`, `ctrl+q`, Delete, Super). Tryb ask pyta o wszystko, auto tylko o te, full o nic.
+## Safety
 
-## Niesprawdzone (kod jest, testu brak)
+8. [x] **Kill switch.** `python -m jarvis.agent stop`, `scripts/jarvis-stop.sh` (for a custom KDE shortcut) and STOP in the web app. The agent stops before its next action.
+9. [x] **Action guards** (`jarvis/safety.py`). Typing in a terminal is allowed. Confirmation is required for: text that looks like a dangerous command (`sudo`, `rm -rf`, `curl | sh`, `git push`…), commands typed into the launcher, and shortcuts that close or delete (`alt+f4`, `ctrl+w`, `ctrl+q`, Delete, Super). Ask mode asks about everything, auto only about these, full about nothing.
 
-10. [ ] Kierunek scrolla (`actions.scroll`, znak REL_WHEEL).
-11. [ ] Polskie znaki: wklejanie przez `wl-copy` + ctrl+v. W terminalach potrzebne jest ctrl+shift+v.
-12. [ ] Drag i double-click.
+## Untested (code exists, no test)
 
-## Później
+10. [ ] Scroll direction (`actions.scroll`, sign of REL_WHEEL).
+11. [ ] Polish characters: pasting through `wl-copy` + ctrl+v. Terminals need ctrl+shift+v.
+12. [ ] Drag and double-click.
 
-13. [ ] AT-SPI: drzewo dostępności zamiast zrzutów tam, gdzie aplikacja je udostępnia (GTK/Qt/Firefox).
-14. [ ] Głos przez whisper.cpp. Nagrywanie w przeglądarce wymaga HTTPS na stronie, na razie zostaje dyktowanie z klawiatury telefonu.
+## Later
 
-## Pomysły z gotowych projektów
+13. [ ] AT-SPI: accessibility tree instead of screenshots where the app exposes it (GTK/Qt/Firefox).
+14. [ ] Voice through whisper.cpp. Recording in the browser requires HTTPS on the page, so for now dictation from the phone keyboard stays.
 
-Przegląd open source z 2026-10-19: żaden projekt nie łączy lokalnego modelu z llama.cpp, KDE Wayland, prawdziwego pulpitu i sterowania z telefonu, więc rozwijamy własny. Warto podebrać:
+## Ideas from existing projects
 
-15. [ ] **Tryb ręczny na telefonie** (z [contop](https://github.com/slopedrop/contop)): dotknięcie podglądu ekranu klika w to miejsce na komputerze, bez modelu. Do poprawiania agenta, gdy utknie.
-16. [ ] **Podgląd na żywo** (z contop): odświeżany zrzut lub strumień zamiast jednorazowego "Podgląd ekranu".
-17. [x] **Tryby ask / auto / full** (z [Open WebUI Computer](https://docs.openwebui.com/ecosystem/computer/)) zamiast jednego przełącznika "bez pytania". Na przykład: ask pyta o wszystko, auto pyta tylko o ryzykowne akcje (punkt 9), full nie pyta wcale.
-18. [ ] **Sandbox do testów** (z [Bytebot](https://github.com/bytebot-ai/bytebot)): osobny pulpit w kontenerze lub VM do sprawdzania ryzykownych zadań, zanim agent dostanie prawdziwy pulpit.
+Open source review from 2026-10-19: no project combines a local model on llama.cpp, KDE Wayland, a real desktop and phone control, so we build our own. Worth borrowing:
 
-Do podejrzenia w kodzie: [UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop) (prompty i parser akcji dla tego samego modelu).
+15. [ ] **Manual mode on the phone** (from [contop](https://github.com/slopedrop/contop)): tapping the screen preview clicks that spot on the computer, without the model. For correcting the agent when it gets stuck.
+16. [ ] **Live preview** (from contop): a refreshing screenshot or a stream instead of the one-off "Screen preview".
+17. [x] **ask / auto / full modes** (from [Open WebUI Computer](https://docs.openwebui.com/ecosystem/computer/)) instead of a single "no prompts" switch. For example: ask asks about everything, auto asks only about risky actions (item 9), full never asks.
+18. [ ] **Test sandbox** (from [Bytebot](https://github.com/bytebot-ai/bytebot)): a separate desktop in a container or VM for checking risky tasks before the agent gets the real desktop.
+
+Worth reading the code of: [UI-TARS-desktop](https://github.com/bytedance/UI-TARS-desktop) (prompts and action parser for the same model).

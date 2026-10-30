@@ -164,7 +164,7 @@ def execute(step: Step, gpoints: list[tuple[int, int]]) -> None:
 
 def confirm(prompt: str) -> str:
     try:
-        ans = input(f"{prompt}  [Enter=wykonaj, s=pomiń, q=stop] ").strip().lower()
+        ans = input(f"{prompt}  [Enter=run, s=skip, q=stop] ").strip().lower()
     except EOFError:
         return "q"
     return {"": "y", "s": "s", "q": "q"}.get(ans, "q")

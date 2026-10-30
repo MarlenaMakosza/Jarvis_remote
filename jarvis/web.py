@@ -201,7 +201,7 @@ def make_handler(app: App):
                     })
                     return
                 if not self._authed():
-                    self._send(401, "Brak dostępu. Otwórz link z tokenem z terminala.".encode(), "text/plain; charset=utf-8")
+                    self._send(401, "Access denied. Open the link with the token from the terminal.".encode(), "text/plain; charset=utf-8")
                     return
                 self._send(200, (STATIC / "index.html").read_bytes(), "text/html; charset=utf-8")
                 return
